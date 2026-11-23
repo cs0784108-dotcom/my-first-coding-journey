@@ -1,0 +1,366 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grand City 3D</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101522;color:white;font-family:Arial;text-align:center}
+h2{color:gold;margin:10px}
+#hud{display:flex;justify-content:space-around;padding:8px}
+#game{width:100%;height:70vh;min-height:420px;display:block}
+.controls{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;padding:10px}
+button{background:orange;border:0;border-radius:10px;padding:13px;font-weight:bold;touch-action:none}
+#message{color:gold;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🏙️ GRAND CITY 3D</h2>
+<div id="hud">
+ <span>🚗 SPORTS CAR</span>
+ <span>💰 $<b id="cash">0</b></span>
+ <span>🎯 <b id="status">FIND CHECKPOINT</b></span>
+</div>
+
+<div id="game"></div>
+<p id="message">Welcome to Grand City!</p>
+
+<div class="controls">
+ <button data-key="w">⬆ ACCELERATE</button>
+ <button data-key="a">⬅ LEFT</button>
+ <button data-key="s">⬇ BRAKE</button>
+ <button data-key="d">➡ RIGHT</button>
+ <button id="reset">🔄 RESTART</button>
+</div>
+
+<script type="importmap">
+{
+ "imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+ }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+
+const container=document.getElementById("game");
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87bce9);
+scene.fog=new THREE.Fog(0x87bce9,100,650);
+
+const camera=new THREE.PerspectiveCamera(
+ 65,container.clientWidth/container.clientHeight,0.1,1200
+);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(container.clientWidth,container.clientHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+// LIGHTING
+scene.add(new THREE.HemisphereLight(0xffffff,0x526052,2));
+
+const sunlight=new THREE.DirectionalLight(0xffffff,2);
+sunlight.position.set(100,150,80);
+sunlight.castShadow=true;
+sunlight.shadow.mapSize.set(2048,2048);
+scene.add(sunlight);
+
+// GROUND
+const ground=new THREE.Mesh(
+ new THREE.PlaneGeometry(1200,1200),
+ new THREE.MeshStandardMaterial({color:0x47864b})
+);
+ground.rotation.x=-Math.PI/2;
+ground.position.y=-0.1;
+ground.receiveShadow=true;
+scene.add(ground);
+
+// ROADS
+function road(x,z,w,d){
+ const mesh=new THREE.Mesh(
+  new THREE.BoxGeometry(w,.15,d),
+  new THREE.MeshStandardMaterial({color:0x30343d})
+ );
+ mesh.position.set(x,.01,z);
+ mesh.receiveShadow=true;
+ scene.add(mesh);
+}
+for(let i=-500;i<=500;i+=200){
+ road(i,0,32,1200);
+ road(0,i,1200,32);
+}
+
+// ROAD MARKINGS
+function marking(x,z,w,d){
+ const m=new THREE.Mesh(
+  new THREE.BoxGeometry(w,.08,d),
+  new THREE.MeshBasicMaterial({color:0xe8dfb0})
+ );
+ m.position.set(x,.12,z);
+ scene.add(m);
+}
+for(let i=-500;i<=500;i+=200){
+ for(let j=-500;j<=500;j+=35){
+  marking(i,j,1,15);
+  marking(j,i,15,1);
+ }
+}
+
+// BUILDINGS
+const buildingMaterials=[
+ 0x858d9e,0xb49b7b,0x667c96,
+ 0x9b8c83,0x596d7d,0xc1b6a2
+].map(c=>new THREE.MeshStandardMaterial({color:c}));
+
+function building(x,z,w,h,d){
+ const b=new THREE.Mesh(
+  new THREE.BoxGeometry(w,h,d),
+  buildingMaterials[Math.floor(Math.random()*buildingMaterials.length)]
+ );
+ b.position.set(x,h/2,z);
+ b.castShadow=true;
+ b.receiveShadow=true;
+ scene.add(b);
+
+ // Windows
+ const windowMat=new THREE.MeshStandardMaterial({
+  color:0x9bd9ed,emissive:0x163b55
+ });
+
+ for(let y=10;y<h-4;y+=12){
+  for(let xx=-w/2+5;xx<w/2-3;xx+=10){
+   const win=new THREE.Mesh(
+    new THREE.BoxGeometry(4,5,.2),windowMat
+   );
+   win.position.set(x+xx,y,z-d/2-.15);
+   scene.add(win);
+  }
+ }
+}
+
+for(let x=-500;x<=500;x+=100){
+ for(let z=-500;z<=500;z+=100){
+  if(Math.abs(x)%200<40||Math.abs(z)%200<40)continue;
+  building(x+Math.random()*12,z+Math.random()*12,
+   45,20+Math.random()*100,45);
+ }
+}
+
+// TREES
+function tree(x,z){
+ const trunk=new THREE.Mesh(
+  new THREE.CylinderGeometry(1,1.5,9,8),
+  new THREE.MeshStandardMaterial({color:0x65442b})
+ );
+ trunk.position.set(x,4.5,z);
+ scene.add(trunk);
+
+ const leaves=new THREE.Mesh(
+  new THREE.ConeGeometry(7,17,8),
+  new THREE.MeshStandardMaterial({color:0x167c43})
+ );
+ leaves.position.set(x,15,z);
+ scene.add(leaves);
+}
+for(let i=0;i<90;i++){
+ let x=(Math.random()-.5)*1000;
+ let z=(Math.random()-.5)*1000;
+ if(Math.abs(x%200)>25&&Math.abs(z%200)>25)tree(x,z);
+}
+
+// CAR
+const car=new THREE.Group();
+scene.add(car);
+
+const body=new THREE.Mesh(
+ new THREE.BoxGeometry(4,1.2,7),
+ new THREE.MeshStandardMaterial({
+  color:0xe62d36,metalness:.45,roughness:.3
+ })
+);
+body.position.y=1.2;
+body.castShadow=true;
+car.add(body);
+
+const cabin=new THREE.Mesh(
+ new THREE.BoxGeometry(3.2,1.3,3.5),
+ new THREE.MeshStandardMaterial({
+  color:0x182f49,metalness:.4,roughness:.2
+ })
+);
+cabin.position.set(0,2.25,-.3);
+car.add(cabin);
+
+// CAR DETAILS
+function addWheel(x,z){
+ const wheel=new THREE.Mesh(
+  new THREE.CylinderGeometry(.75,.75,.5,24),
+  new THREE.MeshStandardMaterial({color:0x111111})
+ );
+ wheel.rotation.z=Math.PI/2;
+ wheel.position.set(x,.75,z);
+ car.add(wheel);
+}
+addWheel(-2,2.2);
+addWheel(2,2.2);
+addWheel(-2,-2.2);
+addWheel(2,-2.2);
+
+// HEADLIGHTS
+for(const x of [-1.35,1.35]){
+ const light=new THREE.Mesh(
+  new THREE.BoxGeometry(.7,.3,.15),
+  new THREE.MeshBasicMaterial({color:0xffffcc})
+ );
+ light.position.set(x,1.3,3.55);
+ car.add(light);
+}
+
+// INITIAL POSITION
+car.position.set(0,0,60);
+
+// MISSION CHECKPOINT
+const marker=new THREE.Group();
+const ring=new THREE.Mesh(
+ new THREE.TorusGeometry(5,.5,12,40),
+ new THREE.MeshBasicMaterial({color:0xffd52d})
+);
+ring.rotation.x=Math.PI/2;
+ring.position.y=2;
+marker.add(ring);
+
+const beam=new THREE.Mesh(
+ new THREE.CylinderGeometry(.15,.15,14,12),
+ new THREE.MeshBasicMaterial({
+  color:0xffdd36,transparent:true,opacity:.35
+ })
+);
+beam.position.y=8;
+marker.add(beam);
+marker.position.set(0,0,-100);
+scene.add(marker);
+
+// GAME STATE
+let speed=0;
+let steering=0;
+let cash=0;
+let checkpointActive=true;
+const keys={};
+
+function setKey(k,v){keys[k]=v;}
+
+document.addEventListener("keydown",e=>{
+ const k=e.key.toLowerCase();
+ keys[k]=true;
+});
+document.addEventListener("keyup",e=>{
+ keys[e.key.toLowerCase()]=false;
+});
+
+document.querySelectorAll("[data-key]").forEach(btn=>{
+ const k=btn.dataset.key;
+ btn.addEventListener("pointerdown",e=>{
+  e.preventDefault();setKey(k,true);
+ });
+ ["pointerup","pointerleave","pointercancel"].forEach(event=>{
+  btn.addEventListener(event,()=>setKey(k,false));
+ });
+});
+
+// CAMERA
+const cameraOffset=new THREE.Vector3(0,10,-20);
+const targetCamera=new THREE.Vector3();
+
+// RESET
+function reset(){
+ car.position.set(0,0,60);
+ car.rotation.set(0,0,0);
+ speed=0;
+ cash=0;
+ checkpointActive=true;
+ marker.position.set(0,0,-100);
+ document.getElementById("cash").textContent=cash;
+ document.getElementById("status").textContent="FIND CHECKPOINT";
+ document.getElementById("message").textContent="New journey started!";
+}
+document.getElementById("reset").onclick=reset;
+
+// ANIMATION
+const clock=new THREE.Clock();
+
+function animate(){
+ requestAnimationFrame(animate);
+ const dt=Math.min(clock.getDelta(),.04);
+
+ if(keys.w||keys.arrowup)speed=Math.min(speed+18*dt,38);
+ else if(keys.s||keys.arrowdown)speed=Math.max(speed-25*dt,-12);
+ else speed*=Math.pow(.96,dt*60);
+
+ if(keys.a||keys.arrowleft)steering=1;
+ else if(keys.d||keys.arrowright)steering=-1;
+ else steering=0;
+
+ if(Math.abs(speed)>.5){
+  car.rotation.y+=steering*1.4*dt*Math.sign(speed);
+  car.position.x+=Math.sin(car.rotation.y)*speed*dt;
+  car.position.z+=Math.cos(car.rotation.y)*speed*dt;
+ }
+
+ // Keep car in world
+ car.position.x=THREE.MathUtils.clamp(car.position.x,-560,560);
+ car.position.z=THREE.MathUtils.clamp(car.position.z,-560,560);
+
+ // Camera follow
+ const offset=cameraOffset.clone()
+  .applyAxisAngle(new THREE.Vector3(0,1,0),car.rotation.y);
+
+ targetCamera.copy(car.position).add(offset);
+ camera.position.lerp(targetCamera,1-Math.exp(-5*dt));
+
+ const lookTarget=car.position.clone();
+ lookTarget.y+=3;
+ camera.lookAt(lookTarget);
+
+ // Checkpoint
+ ring.rotation.z+=dt*.8;
+ marker.rotation.y+=dt*.5;
+
+ if(checkpointActive&&car.position.distanceTo(marker.position)<12){
+  checkpointActive=false;
+  cash+=500;
+  document.getElementById("cash").textContent=cash;
+  document.getElementById("status").textContent="MISSION COMPLETE!";
+  document.getElementById("message").textContent="🏆 CHECKPOINT REACHED! +$500";
+  setTimeout(()=>{
+   marker.position.set(
+    Math.round((Math.random()-.5)*400/100)*100,
+    0,
+    Math.round((Math.random()-.5)*400/100)*100
+   );
+   checkpointActive=true;
+   document.getElementById("status").textContent="NEXT CHECKPOINT";
+  },1500);
+ }
+
+ renderer.render(scene,camera);
+}
+animate();
+
+// RESPONSIVE
+window.addEventListener("resize",()=>{
+ const w=container.clientWidth;
+ const h=container.clientHeight;
+ camera.aspect=w/h;
+ camera.updateProjectionMatrix();
+ renderer.setSize(w,h);
+});
+</script>
+</body>
+</html>
